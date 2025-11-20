@@ -14,7 +14,7 @@ int main()
     while(opt >= 0)
     {
         printf("\nBem-vindo ao sistema de estoque! A seguir as opções:\n");
-        printf("\n[1] Carregar dados\n[2] Pesquisa\n[3] Carrinho\n[4] Verificar disponibilidade\n[5]Finalizar compra\n[6] Relatórios\n");
+        printf("\n[1] Carregar dados\n[2] Pesquisa\n[3] Carrinho\n[4] Verificar disponibilidade\n[5] Finalizar compra\n[6] Relatórios\n");
         printf("\nDigite aqui: ");
         scanf("%d", &opt);
 
@@ -26,7 +26,7 @@ int main()
                 } break;
             case 2:
                 {
-                    pesquisa();
+                    pesquisa(catalogo->p_item);
                 } break;
             case 3:
                 {
@@ -38,11 +38,20 @@ int main()
                 } break;
             case 5:
                 {
-                    finaliza();
+                    // Parte que você implementa: finalização da compra
+                    int id_filial;
+                    printf("\nDigite o ID da filial para finalizar a compra: ");
+                    scanf("%d", &id_filial);
+
+                    if (!finaliza(car, db, catalogo, id_filial)) {
+                        printf("\nVenda cancelada: nenhum item disponível para retirada nesta filial.\n");
+                    } else {
+                        printf("\nCompra finalizada com sucesso!\n");
+                    }
                 } break;
             case 6:
                 {
-                    relatorio();
+                    relatorio(db);
                 } break;
             default:
                 {

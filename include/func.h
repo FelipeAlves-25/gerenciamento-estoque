@@ -53,8 +53,8 @@ typedef struct dblojas {
 
 // Funções do catálogo
 Item *aloca_item(int id, char *nome, float valor);
+Item *search_cat(Item *cat, int id, char *desc);
 void i_catalog(const char *dir, Catalogo *catalogo);
-void search_cat(Catalogo *catalogo);
 
 // Funções dos itens do estoque
 IEstoque *ie_aloca(int id, int qtd);
@@ -71,11 +71,26 @@ DBLojas *db_aloc();
 void load_db(const char *dir, DBLojas *db);
 
 // Funções do programa na main
-void carrega(Catalogo *c, DBLojas *db); // Função 1
-void pesquisa(); // Função 2
+void carrega(Catalogo *cat, DBLojas *db); // Função 1
+void pesquisa(Item *cat); // Função 2
 void carrinho(); // Função 3
 void verifica_dis(); // Função 4
-void finaliza(); // Função 5
-void relatorio(); // Função 6
+
+int finaliza(Carrinho *car, DBLojas *db, Catalogo *cat, int id_filial);
+
+// Ajusta o carrinho automaticamente com base no estoque da filial
+// Remove itens com quantidade zerada e atualiza o total
+void ajusta_carrinho(Carrinho *car, Filial *filial);
+
+// Abate o estoque da filial com os itens do carrinho
+void abate_estoque(Carrinho *car, Filial*filial);
+
+void relatorio(DBLojas *db); // Função 6
+
+// Gera relatório do pedido finalizado
+void relatorio_pedido(Carrinho *car, int id_filial);
+
+// Gera diagnóstico de atendimento por filial
+void relatorio_diagnostico(Carrinho *car, DBLojas *db, Catalogo *cat);
 
 #endif

@@ -67,11 +67,33 @@ void i_catalog(const char *dir, Catalogo *catalogo)
     fclose(produtos);
 }
 
-
-void search_cat(Catalogo *catalogo)
+// Fará a pesquisa do item no catálogo
+Item *search_cat(Item *cat, int id, char *desc)
 {
-    // Fará a pesquisa do item no catálogo
+    int i, v = 1;
 
+    while(cat != NULL)
+    {
+        if(id == cat->id)
+            break;
+        else if(desc != NULL && *desc == *(cat->nome))
+        {
+            for(i=0; i<STRLEN; i++)
+            {
+                if(*(cat->nome + i) != *(desc + i))
+                {
+                    v = 0;
+                    break;
+                }
+            }
+
+            break;
+        }
+
+        cat = cat->prox;
+    }
+
+    return cat;
 }
 
 // Aloca o item do estoque
@@ -141,6 +163,18 @@ Filial *f_aloc(int id, char *nome)
     return new;
 }
 
+Carrinho *c_aloc()
+{
+    Carrinho *new = (Carrinho*) malloc(sizeof(Carrinho));
+
+    if(new == NULL) return NULL;
+
+    new->total = 0;
+    new->itens = NULL;
+
+    return new;
+}
+
 // Inicia a base de dados
 DBLojas *db_aloc()
 {
@@ -196,30 +230,246 @@ void load_db(const char *dir, DBLojas *db)
    dados do programa, e assim por diante
 */
 
-void carrega(Catalogo *c, DBLojas *db)
+void carrega(Catalogo *cat, DBLojas *db)
 {
     /* Carrega os arquivos e os dados necessários,
        para o caso de não carregar, o programa
        voltará ao início, exibindo qual dos dados
        não foi carregado.
     */
-    i_catalog("./src/entradas/produtos_v2.txt", c);
-    if(c->p_item == NULL)
+    i_catalog("./src/entradas/produtos_v2.txt", cat);
+    load_db("./src/entradas/filiais_v2.txt", db);
+    if(db->prim == NULL || cat->p_item == NULL)
     {
-        printf("\nERRO: Não foi possível carregar o catálogo.");
+        printf("\nERRO: Não foi possível carregar os arquivos.");
         return;
     }
+    else
+        printf("\nArquivos carregados com sucesso!\n");
+}
 
-    load_db("./src/entradas/filiais_v2.txt", db);
-    if(db->prim == NULL)
+void pesquisa(Item *cat)
+{
+    int opt, id;
+    char nome[STRLEN];
+    Item *i_enc = NULL;
+
+    printf("\nComo deseja realizar a pesquisa?\n");
+    printf("\n[1] Código\n[2] Nome/descrição\n[3] Ambos\n");
+    printf("\nDigite aqui: ");
+    scanf("%d", &opt);
+
+    switch(opt)
     {
-        printf("\nERRO: Não foi possível carregar a base de dados.");
-        return;
+        case 1:
+            {
+                printf("\nDigite aqui o código do item: ");
+                scanf("%d", &id);
+
+                i_enc = search_cat(cat, id, NULL);
+            } break;
+        case 2:
+            {
+                int c;
+
+                printf("\nDigite aqui o nome do item: ");
+                
+                while((c = getchar()) != '\n' && c != EOF){}
+                fgets(nome, sizeof(nome), stdin);
+
+                i_enc = search_cat(cat, 0, nome);
+            } break;
+        case 3:
+            {
+                printf("\nDigite aqui o código do item: ");
+                scanf("%d", &id);
+
+                printf("\nAgora, digite o nome do item: ");
+                scanf("%[^\n]", nome);
+
+                i_enc = search_cat(cat, id, nome);
+            } break;
+        default:
+            {
+                printf("\nComando não encontrado, tente novamente.\n");
+            } break;
+    }
+
+    if(i_enc != NULL)
+    {
+        printf("\nA seguir as informações do produto encontrado:\n");
+        printf("\nID do produto: %d\nNome/descrição: %s\nValor: R$%.2f\n", i_enc->id, i_enc->nome, i_enc->valor);
+    }
+    else {
+        printf("\nProduto não encontrado, tente novamente.\n");
     }
 }
 
-void pesquisa();
-void carrinho();
-void verifica_dis();
-void finaliza();
-void relatorio();
+void carrinho()
+{
+
+}
+
+void verifica_dis()
+{
+
+}
+
+// Verifica se a filial atende 100% do carrinho
+int filial_apta(Carrinho *car, Filial *filial) {
+    ICarrinho *item = car->itens;
+    while (item != NULL) {
+        IEstoque *e = filial->estoque;
+        int encontrado = 0;
+        do {
+            if (e->id == item->id) {
+                if (e->qtd < item->qtd)
+                    return 0;
+                encontrado = 1;
+                break;
+            }
+            e = e->prox;
+        } while (e->prox != filial->estoque);
+        if (!encontrado)
+            return 0;
+        item = item->prox;
+    }
+    return 1;
+}
+
+// Ajusta o carrinho com base no estoque da filial
+void ajusta_carrinho(Carrinho *car, Filial *filial) {
+    ICarrinho *item = car->itens;
+    ICarrinho *anterior = NULL;
+    while (item != NULL) {
+        IEstoque *e = filial->estoque;
+        int disponivel = 0;
+
+        do {
+            if (e->id == item->id) {
+                disponivel = e->qtd;
+                break;
+            }
+            e = e->prox;
+        } while (e->prox != filial->estoque);
+
+        if (disponivel == 0) {
+            car->total -= item->qtd * item->valor;
+            if (anterior == NULL)
+                car->itens = item->prox;
+            else
+                anterior->prox = item->prox;
+            free(item);
+            item = (anterior == NULL) ? car->itens : anterior->prox;
+        } else if (disponivel < item->qtd) {
+            car->total -= (item->qtd - disponivel) * item->valor;
+            item->qtd = disponivel;
+            anterior = item;
+            item = item->prox;
+        } else {
+            anterior = item;
+            item = item->prox;
+        }
+    }
+}
+
+// Abate o estoque da filial com os itens do carrinho
+void abate_estoque(Carrinho *car, Filial *filial) {
+    ICarrinho *item = car->itens;
+    while (item != NULL) {
+        IEstoque *e = filial->estoque;
+        while (e != NULL) {
+            if (e->id == item->id) {
+                e->qtd -= item->qtd;
+                break;
+            }
+            e = e->prox;
+        }
+        item = item->prox;
+    }
+}
+
+int finaliza(Carrinho *car, DBLojas *db, Catalogo *cat, int id_filial) {
+    Filial *filial = db->prim;
+    while (filial != NULL && filial->id != id_filial)
+        filial = filial->prox;
+
+    if (filial == NULL) {
+        printf("\nFilial não encontrada.\n");
+        return 0;
+    }
+
+    if (!filial_apta(car, filial)) {
+        ajusta_carrinho(car, filial);
+        if (car->itens == NULL)
+            return 0;
+    }
+
+    abate_estoque(car, filial);
+    relatorio_pedido(car, id_filial);
+    return 1;
+}
+
+void relatorio(DBLojas *db)
+{
+
+}
+
+// Relatório do pedido finalizado (exibe no terminal)
+void relatorio_pedido(Carrinho *car, int id_filial)
+{
+    printf("\nPedido finalizado na filial %d\n", id_filial);
+    ICarrinho *item = car->itens;
+
+    while(item)
+    {
+        float subtotal = item->qtd * item->valor;
+        printf("Produto %d \n Qtd: %d \n Preço: %.2f \n Subtotal: %.2f\n", item->id, item->qtd, item->valor, subtotal);
+        item = item->prox;
+    }
+
+    printf("\nTOTAL: %.2f\n", car->total);
+}
+
+// Relatório de diagnóstico por filial (exibe no terminal)
+void relatorio_diagnostico(Carrinho *car, DBLojas *db, Catalogo *cat)
+{
+    Filial *filial = db->prim;
+
+    while(filial)
+    {
+        int apta = 1;
+        ICarrinho *item = car->itens;
+
+        printf("\nFilial %d \n %s\n", filial->id, filial->nome);
+
+        while(item)
+        {
+            IEstoque *e = filial->estoque;
+            int disponivel = 0;
+
+            while(e)
+            {
+                if(e->id == item->id)
+                {
+                    disponivel = e->qtd;
+                    break;
+                }
+                e = e->prox;
+            }
+
+            if(disponivel < item->qtd)
+            {
+                apta = 0;
+                printf("  Faltando: Produto %d \n Qtd faltante: %d\n", item->id, item->qtd - disponivel);
+            }
+
+            item = item->prox;
+        }
+
+        if(apta)
+            printf("Filial apta para atender 100%% do carrinho\n");
+
+        filial = filial->prox;
+    }
+}
